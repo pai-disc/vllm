@@ -12,6 +12,8 @@ from vllm import cache_ops
 from vllm import pos_encoding_ops
 from vllm.model_executor.input_metadata import InputMetadata
 
+import bladnn
+
 _SUPPORTED_HEAD_SIZES = [64, 80, 96, 112, 128, 256]
 
 
@@ -141,7 +143,7 @@ class PagedAttention(nn.Module):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        attention_ops.single_query_cached_kv_attention(
+        bladnn.single_query_cached_kv_attention(
             output,
             query,
             key_cache,
@@ -218,7 +220,7 @@ class PagedAttention(nn.Module):
         if (num_valid_tokens > 0 and key_cache is not None
                 and value_cache is not None):
             # The stride is 3 because the key and value are sliced from qkv.
-            cache_ops.reshape_and_cache(
+            bladnn.reshape_and_cache(
                 key[:num_valid_tokens],
                 value[:num_valid_tokens],
                 key_cache,
@@ -431,7 +433,7 @@ class PagedAttentionWithALiBi(PagedAttention):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        attention_ops.single_query_cached_kv_attention(
+        badnn.single_query_cached_kv_attention(
             output,
             query,
             key_cache,
