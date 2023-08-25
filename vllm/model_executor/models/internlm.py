@@ -18,7 +18,7 @@ from vllm.model_executor.weight_utils import (hf_model_weights_iterator,
                                               load_tensor_parallel_weights)
 from vllm.sequence import SequenceOutputs
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 
 
 class InternLMMLP(nn.Module):
@@ -99,8 +99,9 @@ class InternLMAttention(nn.Module):
     ) -> torch.Tensor:
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.chunk(chunks=3, dim=-1)
-        k_cache, v_cache = kv_cache
+        k_cache, v_cache, k_cache_scale, v_cache_scale = kv_cache
         attn_output = self.attn(positions, q, k, v, k_cache, v_cache,
+                                k_cache_scale, v_cache_scale,
                                 input_metadata, cache_event)
         output, _ = self.o_proj(attn_output)
         return output

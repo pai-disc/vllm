@@ -19,7 +19,7 @@ from vllm.model_executor.parallel_utils.tensor_parallel import (
 from vllm.sequence import SequenceOutputs
 from vllm.transformers_utils.configs.mpt import MPTConfig
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 
 
 def _get_alibi_slopes(
@@ -98,9 +98,10 @@ class MPTAttention(nn.Module):
         if self.qk_ln:
             q = self.q_ln(q)
             k = self.k_ln(k)
-        k_cache, v_cache = kv_cache
-        attn_output = self.attn(q, k, v, k_cache, v_cache, input_metadata,
-                                cache_event)
+        k_cache, v_cache, k_cache_scale, v_cache_scale = kv_cache
+        attn_output = self.attn(q, k, v, k_cache, v_cache,
+                                k_cache_scale, v_cache_scale,
+                                input_metadata, cache_event)
         output, _ = self.out_proj(attn_output)
         return output
 

@@ -41,7 +41,7 @@ from vllm.model_executor.parallel_utils.tensor_parallel import (
 from vllm.sequence import SequenceOutputs
 from vllm.transformers_utils.configs import RWConfig
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 FalconConfig = Union[HF_FalconConfig, RWConfig]
 
 
@@ -204,13 +204,15 @@ class FalconAttention(nn.Module):
                 qkv += bias
             q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size],
                                 dim=-1)
-        k_cache, v_cache = kv_cache
+        k_cache, v_cache, k_cache_scale, v_cache_scale = kv_cache
         if self.use_rotary:
             attn_output = self.attn(positions, q, k, v, k_cache, v_cache,
+                                    k_cache_scale, v_cache_scale,
                                     input_metadata, cache_event)
         else:
-            attn_output = self.attn(q, k, v, k_cache, v_cache, input_metadata,
-                                    cache_event)
+            attn_output = self.attn(q, k, v, k_cache, v_cache, 
+                                    k_cache_scale, v_cache_scale,
+                                    input_metadata, cache_event)
         attn_output, bias = self.dense(attn_output)
         return attn_output, bias
 

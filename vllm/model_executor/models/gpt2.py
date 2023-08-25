@@ -39,7 +39,7 @@ from vllm.model_executor.parallel_utils.tensor_parallel import (
     VocabParallelEmbedding, ColumnParallelLinear, RowParallelLinear)
 from vllm.sequence import SequenceOutputs
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 
 
 class GPT2Attention(nn.Module):
@@ -78,8 +78,9 @@ class GPT2Attention(nn.Module):
     ) -> torch.Tensor:
         qkv, _ = self.c_attn(hidden_states)
         q, k, v = qkv.chunk(chunks=3, dim=-1)
-        key_cache, value_cache = kv_cache
+        key_cache, value_cache, k_cache_scale, v_cache_scale = kv_cache
         attn_output = self.attn(q, k, v, key_cache, value_cache,
+                                k_cache_scale, v_cache_scale,
                                 input_metadata, cache_event)
         attn_output, _ = self.c_proj(attn_output)
         return attn_output

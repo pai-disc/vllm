@@ -72,6 +72,7 @@ class Worker:
         block_size: int,
         gpu_memory_utilization: float,
         cpu_swap_space: int,
+        kv_quant_type: str,
     ) -> Tuple[int, int]:
         # Profile the memory usage of the model and get the maximum number of
         # cache blocks that can be allocated with the remaining free memory.
@@ -108,7 +109,7 @@ class Worker:
         self.model(
             input_ids=input_tokens,
             positions=input_positions,
-            kv_caches=[(None, None)] * num_layers,
+            kv_caches=[(None, None,None,None)] * num_layers,
             input_metadata=input_metadata,
             cache_events=None,
         )
@@ -119,7 +120,7 @@ class Worker:
         peak_memory = torch.cuda.max_memory_allocated()
         total_gpu_memory = get_gpu_memory()
         cache_block_size = CacheEngine.get_cache_block_size(
-            block_size, self.model_config, self.parallel_config)
+            block_size, self.model_config, self.parallel_config, kv_quant_type)
         num_gpu_blocks = int(
             (total_gpu_memory * gpu_memory_utilization - peak_memory) //
             cache_block_size)

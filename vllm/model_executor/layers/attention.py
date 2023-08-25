@@ -129,6 +129,8 @@ class PagedAttention(nn.Module):
         query: torch.Tensor,
         key_cache: torch.Tensor,
         value_cache: torch.Tensor,
+        key_cache_scale: Optional[torch.Tensor],
+        value_cache_scale: Optional[torch.Tensor],
         input_metadata: InputMetadata,
     ) -> None:
         """PagedAttention for the generation tokens.
@@ -143,19 +145,37 @@ class PagedAttention(nn.Module):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        bladnn.single_query_cached_kv_attention(
-            output,
-            query,
-            key_cache,
-            value_cache,
-            self.head_mapping,
-            self.scale,
-            input_metadata.block_tables,
-            input_metadata.context_lens,
-            block_size,
-            input_metadata.max_context_len,
-            None,  # alibi_slopes
-        )
+        # int8 kv cache
+        if key_cache_scale is not None and value_cache_scale is not None:
+            bladnn.single_query_cached_kv_attention_quant_int8(
+                output,
+                query,
+                key_cache,
+                key_cache_scale,
+                value_cache,
+                value_cache_scale,
+                self.head_mapping,
+                self.scale,
+                input_metadata.block_tables,
+                input_metadata.context_lens,
+                block_size,
+                input_metadata.max_context_len,
+                None,  # alibi_slopes
+            )
+        else:
+            bladnn.single_query_cached_kv_attention(
+                output,
+                query,
+                key_cache,
+                value_cache,
+                self.head_mapping,
+                self.scale,
+                input_metadata.block_tables,
+                input_metadata.context_lens,
+                block_size,
+                input_metadata.max_context_len,
+                None,  # alibi_slopes
+            )
 
     def forward(
         self,
@@ -164,6 +184,8 @@ class PagedAttention(nn.Module):
         value: torch.Tensor,
         key_cache: Optional[torch.Tensor],
         value_cache: Optional[torch.Tensor],
+        key_cache_scale: Optional[torch.Tensor],
+        value_cache_scale: Optional[torch.Tensor],
         input_metadata: InputMetadata,
         cache_event: Optional[torch.cuda.Event],
     ) -> torch.Tensor:
@@ -179,6 +201,10 @@ class PagedAttention(nn.Module):
             key_cache: shape = [num_blocks, num_kv_heads, head_size/x,
                 block_size, x]
             value_cache: shape = [num_blocks, num_kv_heads, head_size,
+                block_size]
+            key_cache_scale: shape = [num_blocks, num_kv_heads,
+                block_size]
+            value_cache_scale: shape = [num_blocks, num_kv_heads,
                 block_size]
             input_metadata: metadata for paged attention.
             cache_event: event to wait for the cache operations to finish.
@@ -219,14 +245,25 @@ class PagedAttention(nn.Module):
         num_valid_tokens = input_metadata.num_valid_tokens
         if (num_valid_tokens > 0 and key_cache is not None
                 and value_cache is not None):
-            # The stride is 3 because the key and value are sliced from qkv.
-            bladnn.reshape_and_cache(
-                key[:num_valid_tokens],
-                value[:num_valid_tokens],
-                key_cache,
-                value_cache,
-                input_metadata.slot_mapping,
-            )
+            # int8 kv cache
+            if key_cache_scale is not None and value_cache_scale is not None:
+                # The stride is 3 because the key and value are sliced from qkv.
+                bladnn.reshape_and_cache_quant_int8(
+                    key[:num_valid_tokens],
+                    value[:num_valid_tokens],
+                    key_cache, key_cache_scale,
+                    value_cache, value_cache_scale,
+                    input_metadata.slot_mapping,
+                )
+            else:
+                # The stride is 3 because the key and value are sliced from qkv.
+                bladnn.reshape_and_cache(
+                    key[:num_valid_tokens],
+                    value[:num_valid_tokens],
+                    key_cache,
+                    value_cache,
+                    input_metadata.slot_mapping,
+                )
 
         if input_metadata.num_generation_tokens > 0:
             # Decoding run.
@@ -237,8 +274,10 @@ class PagedAttention(nn.Module):
             # Compute the attention op for generation tokens.
             self.single_query_cached_kv_attention(
                 output[num_prompt_tokens:num_valid_tokens],
-                query[num_prompt_tokens:num_valid_tokens], key_cache,
-                value_cache, input_metadata)
+                query[num_prompt_tokens:num_valid_tokens],
+                key_cache, value_cache,
+                key_cache_scale, value_cache_scale,
+                input_metadata)
 
         # Reshape the output tensor.
         # NOTE(woosuk): The output tensor may include paddings.
@@ -284,6 +323,8 @@ class PagedAttentionWithRoPE(PagedAttention):
         value: torch.Tensor,
         key_cache: torch.Tensor,
         value_cache: torch.Tensor,
+        key_cache_scale: Optional[torch.Tensor],
+        value_cache_scale: Optional[torch.Tensor],
         input_metadata: InputMetadata,
         cache_event: Optional[torch.cuda.Event],
     ) -> torch.Tensor:
@@ -320,6 +361,8 @@ class PagedAttentionWithRoPE(PagedAttention):
             value,
             key_cache,
             value_cache,
+            key_cache_scale,
+            value_cache_scale,
             input_metadata,
             cache_event,
         )
@@ -419,6 +462,8 @@ class PagedAttentionWithALiBi(PagedAttention):
         query: torch.Tensor,
         key_cache: torch.Tensor,
         value_cache: torch.Tensor,
+        key_cache_scale: Optional[torch.Tensor],
+        value_cache_scale: Optional[torch.Tensor],
         input_metadata: InputMetadata,
     ) -> None:
         """PagedAttention with ALiBi bias for the generation tokens.
@@ -433,16 +478,34 @@ class PagedAttentionWithALiBi(PagedAttention):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        badnn.single_query_cached_kv_attention(
-            output,
-            query,
-            key_cache,
-            value_cache,
-            self.head_mapping,
-            self.scale,
-            input_metadata.block_tables,
-            input_metadata.context_lens,
-            block_size,
-            input_metadata.max_context_len,
-            self.alibi_slopes,
-        )
+        # int8 kv cache
+        if key_cache_scale is not None and value_cache_scale is not None:
+            bladnn.single_query_cached_kv_attention_quant_int8(
+                output,
+                query,
+                key_cache,
+                key_cache_scale,
+                value_cache,
+                value_cache_scale,
+                self.head_mapping,
+                self.scale,
+                input_metadata.block_tables,
+                input_metadata.context_lens,
+                block_size,
+                input_metadata.max_context_len,
+                self.alibi_slopes,
+            )
+        else:
+            bladnn.single_query_cached_kv_attention(
+                output,
+                query,
+                key_cache,
+                value_cache,
+                self.head_mapping,
+                self.scale,
+                input_metadata.block_tables,
+                input_metadata.context_lens,
+                block_size,
+                input_metadata.max_context_len,
+                self.alibi_slopes,
+            )

@@ -28,6 +28,8 @@ class EngineArgs:
     max_num_batched_tokens: int = 2560
     max_num_seqs: int = 256
     disable_log_stats: bool = False
+    # 'half', 'int8', 'int4'
+    kv_quant_type: str = 'half'
 
     def __post_init__(self):
         if self.tokenizer is None:
@@ -130,6 +132,12 @@ class EngineArgs:
         parser.add_argument('--disable-log-stats',
                             action='store_true',
                             help='disable logging statistics')
+        parser.add_argument('--kv_quant_type',
+                            type=str,
+                            default=EngineArgs.kv_quant_type,
+                            choices=['half', 'int8'], # TODO: 'int4' supported
+                            help='key and value cache quant type.')
+
         return parser
 
     @classmethod
@@ -151,7 +159,8 @@ class EngineArgs:
                                    self.seed)
         cache_config = CacheConfig(self.block_size,
                                    self.gpu_memory_utilization,
-                                   self.swap_space)
+                                   self.swap_space,
+                                   self.kv_quant_type)
         parallel_config = ParallelConfig(self.pipeline_parallel_size,
                                          self.tensor_parallel_size,
                                          self.worker_use_ray)

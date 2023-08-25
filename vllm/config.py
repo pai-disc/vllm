@@ -156,6 +156,7 @@ class CacheConfig:
         block_size: int,
         gpu_memory_utilization: float,
         swap_space: int,
+        kv_quant_type: str,
     ) -> None:
         self.block_size = block_size
         self.gpu_memory_utilization = gpu_memory_utilization
@@ -165,6 +166,9 @@ class CacheConfig:
         # Will be set after profiling.
         self.num_gpu_blocks = None
         self.num_cpu_blocks = None
+
+        # half, int8, int4.
+        self.kv_quant_type = kv_quant_type
 
     def _verify_args(self) -> None:
         if self.gpu_memory_utilization > 1.0:

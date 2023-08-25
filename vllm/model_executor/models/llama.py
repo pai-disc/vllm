@@ -44,7 +44,7 @@ from vllm.model_executor.parallel_utils.tensor_parallel import (
     VocabParallelEmbedding, ColumnParallelLinear, RowParallelLinear)
 from vllm.sequence import SequenceOutputs
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 
 
 class LlamaMLP(nn.Module):
@@ -131,8 +131,9 @@ class LlamaAttention(nn.Module):
     ) -> torch.Tensor:
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-        k_cache, v_cache = kv_cache
+        k_cache, v_cache, k_cache_scale, v_cache_scale = kv_cache
         attn_output = self.attn(positions, q, k, v, k_cache, v_cache,
+                                k_cache_scale, v_cache_scale,
                                 input_metadata, cache_event)
         output, _ = self.o_proj(attn_output)
         return output

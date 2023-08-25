@@ -185,6 +185,7 @@ class LLMEngine:
             block_size=self.cache_config.block_size,
             gpu_memory_utilization=self.cache_config.gpu_memory_utilization,
             cpu_swap_space=self.cache_config.swap_space_bytes,
+            kv_quant_type=self.cache_config.kv_quant_type,
         )
 
         # Since we use a shared centralized controller, we take the minimum

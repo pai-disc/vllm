@@ -39,7 +39,7 @@ from vllm.model_executor.parallel_utils.tensor_parallel import (
     VocabParallelEmbedding, ColumnParallelLinear, RowParallelLinear)
 from vllm.sequence import SequenceOutputs
 
-KVCache = Tuple[torch.Tensor, torch.Tensor]
+KVCache = Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
 
 
 def _get_alibi_slopes(total_num_heads: int) -> torch.Tensor:
@@ -117,9 +117,10 @@ class BloomAttention(nn.Module):
         del position_ids  # Unused.
         qkv, _ = self.query_key_value(hidden_states)
         q, k, v = qkv.chunk(chunks=3, dim=-1)
-        k_cache, v_cache = kv_cache
-        attn_output = self.attn(q, k, v, k_cache, v_cache, input_metadata,
-                                cache_event)
+        k_cache, v_cache, k_cache_scale, v_cache_scale = kv_cache
+        attn_output = self.attn(q, k, v, k_cache, v_cache,
+                                k_cache_scale, v_cache_scale,
+                                input_metadata, cache_event)
         output, _ = self.dense(attn_output)
         return output
 
