@@ -74,8 +74,9 @@ def sample_requests(
             continue
         filtered_dataset.append((prompt, prompt_len, output_len))
 
-    return filtered_dataset[:num_requests]
-
+    ###return filtered_dataset[:num_requests]
+    return filtered_dataset[23:30]
+   
     '''
     # Sample the requests.
     sampled_requests = random.sample(filtered_dataset, num_requests)
@@ -117,7 +118,7 @@ async def send_request(
             "n": 1,
             "best_of": best_of,
             "use_beam_search": use_beam_search,
-            "temperature": 0.0 if use_beam_search else 1.0,
+            "temperature": 0.0, # if use_beam_search else 1.0,
             "top_p": 1.0,
             "max_tokens": output_len,
             "ignore_eos": True,
@@ -189,8 +190,13 @@ def main(args: argparse.Namespace):
     input_requests = sample_requests(args.dataset, args.num_prompts, tokenizer)
 
     benchmark_start_time = time.time()
+    for i in range(1):
+        asyncio.run(benchmark(args.backend, api_url, input_requests, args.best_of,
+                    args.use_beam_search, args.request_rate))
+    '''
     asyncio.run(benchmark(args.backend, api_url, input_requests, args.best_of,
                           args.use_beam_search, args.request_rate))
+    '''
     benchmark_end_time = time.time()
     benchmark_time = benchmark_end_time - benchmark_start_time
     print(f"Total time: {benchmark_time:.2f} s")

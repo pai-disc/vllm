@@ -145,23 +145,43 @@ class PagedAttention(nn.Module):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        # int8 kv cache
+        # int8/int4 kv cache
         if key_cache_scale is not None and value_cache_scale is not None:
-            bladnn.single_query_cached_kv_attention_quant_int8(
-                output,
-                query,
-                key_cache,
-                key_cache_scale,
-                value_cache,
-                value_cache_scale,
-                self.head_mapping,
-                self.scale,
-                input_metadata.block_tables,
-                input_metadata.context_lens,
-                block_size,
-                input_metadata.max_context_len,
-                None,  # alibi_slopes
-            )
+            # int4 kv cache 
+            # headsize -> headsize/2
+            if not value_cache.shape[2] == query.shape[2]:
+                bladnn.single_query_cached_kv_attention_quant_int4(
+                    output,
+                    query,
+                    key_cache,
+                    key_cache_scale,
+                    value_cache,
+                    value_cache_scale,
+                    self.head_mapping,
+                    self.scale,
+                    input_metadata.block_tables,
+                    input_metadata.context_lens,
+                    block_size,
+                    input_metadata.max_context_len,
+                    None,  # alibi_slopes
+                )
+            else:
+                # int8 kv cache 
+                bladnn.single_query_cached_kv_attention_quant_int8(
+                    output,
+                    query,
+                    key_cache,
+                    key_cache_scale,
+                    value_cache,
+                    value_cache_scale,
+                    self.head_mapping,
+                    self.scale,
+                    input_metadata.block_tables,
+                    input_metadata.context_lens,
+                    block_size,
+                    input_metadata.max_context_len,
+                    None,  # alibi_slopes
+                )
         else:
             bladnn.single_query_cached_kv_attention(
                 output,
@@ -198,10 +218,12 @@ class PagedAttention(nn.Module):
             query: shape = [num_tokens, num_heads * head_size]
             key: shape = [num_tokens, num_kv_heads * head_size]
             value: shape = [num_tokens, num_kv_heads * head_size]
-            key_cache: shape = [num_blocks, num_kv_heads, head_size/x,
-                block_size, x]
-            value_cache: shape = [num_blocks, num_kv_heads, head_size,
-                block_size]
+            key_cache: 
+              int8 kv cache: shape = [num_blocks, num_kv_heads, head_size/x, block_size, x]
+              int4 kv cache: shape = [num_blocks, num_kv_heads, head_size/2/x, block_size, x]
+            value_cache:
+              int8 kv cache: shape = [num_blocks, num_kv_heads, head_size, block_size]
+              int4 kv cache: shape = [num_blocks, num_kv_heads, head_size/2, block_size]
             key_cache_scale: shape = [num_blocks, num_kv_heads,
                 block_size]
             value_cache_scale: shape = [num_blocks, num_kv_heads,
@@ -248,13 +270,24 @@ class PagedAttention(nn.Module):
             # int8 kv cache
             if key_cache_scale is not None and value_cache_scale is not None:
                 # The stride is 3 because the key and value are sliced from qkv.
-                bladnn.reshape_and_cache_quant_int8(
-                    key[:num_valid_tokens],
-                    value[:num_valid_tokens],
-                    key_cache, key_cache_scale,
-                    value_cache, value_cache_scale,
-                    input_metadata.slot_mapping,
-                )
+                if not query.shape[2] == value_cache.shape[2]:
+                    # int4 kv cache
+                    bladnn.reshape_and_cache_quant_int4(
+                        key[:num_valid_tokens],
+                        value[:num_valid_tokens],
+                        key_cache, key_cache_scale,
+                        value_cache, value_cache_scale,
+                        input_metadata.slot_mapping,
+                    )
+                else:
+                    # int8 kv cache
+                    bladnn.reshape_and_cache_quant_int8(
+                        key[:num_valid_tokens],
+                        value[:num_valid_tokens],
+                        key_cache, key_cache_scale,
+                        value_cache, value_cache_scale,
+                        input_metadata.slot_mapping,
+                    )
             else:
                 # The stride is 3 because the key and value are sliced from qkv.
                 bladnn.reshape_and_cache(
@@ -478,23 +511,42 @@ class PagedAttentionWithALiBi(PagedAttention):
             input_metadata: metadata for paged attention.
         """
         block_size = value_cache.shape[3]
-        # int8 kv cache
+        # int8/int4 kv cache
         if key_cache_scale is not None and value_cache_scale is not None:
-            bladnn.single_query_cached_kv_attention_quant_int8(
-                output,
-                query,
-                key_cache,
-                key_cache_scale,
-                value_cache,
-                value_cache_scale,
-                self.head_mapping,
-                self.scale,
-                input_metadata.block_tables,
-                input_metadata.context_lens,
-                block_size,
-                input_metadata.max_context_len,
-                self.alibi_slopes,
-            )
+            # int4 kv cache
+            if not value_cache.shape[2] == query.shape[2]:
+                bladnn.single_query_cached_kv_attention_quant_int4(
+                    output,
+                    query,
+                    key_cache,
+                    key_cache_scale,
+                    value_cache,
+                    value_cache_scale,
+                    self.head_mapping,
+                    self.scale,
+                    input_metadata.block_tables,
+                    input_metadata.context_lens,
+                    block_size,
+                    input_metadata.max_context_len,
+                    self.alibi_slopes,
+                )
+            else:
+                # int8 kv cache
+                bladnn.single_query_cached_kv_attention_quant_int8(
+                    output,
+                    query,
+                    key_cache,
+                    key_cache_scale,
+                    value_cache,
+                    value_cache_scale,
+                    self.head_mapping,
+                    self.scale,
+                    input_metadata.block_tables,
+                    input_metadata.context_lens,
+                    block_size,
+                    input_metadata.max_context_len,
+                    self.alibi_slopes,
+                )
         else:
             bladnn.single_query_cached_kv_attention(
                 output,

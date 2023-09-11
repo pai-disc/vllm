@@ -135,7 +135,7 @@ class EngineArgs:
         parser.add_argument('--kv_quant_type',
                             type=str,
                             default=EngineArgs.kv_quant_type,
-                            choices=['half', 'int8'], # TODO: 'int4' supported
+                            choices=['half', 'int8', 'int4'],
                             help='key and value cache quant type.')
 
         return parser

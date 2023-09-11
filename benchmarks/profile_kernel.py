@@ -12,6 +12,8 @@ from tqdm import tqdm
 from vllm import LLM, SamplingParams
 from vllm.transformers_utils.tokenizer import get_tokenizer
 
+from vllm.logger import init_logger
+logger = init_logger(__name__)
 
 def sample_requests(
     dataset_path: str,
@@ -52,12 +54,21 @@ def sample_requests(
         if prompt_len > 1024 or prompt_len + output_len > 2048:
             # Prune too long sequences.
             continue
+        # TODO: set 10 here
+        output_len = 10
         filtered_dataset.append((prompt, prompt_len, output_len))
 
     # Sample the requests.
     sampled_requests = random.sample(filtered_dataset, num_requests)
-    return sampled_requests
+    #return sampled_requests
 
+    repeated_sample0: List[Tuple[str, int, int]] = []
+    # sampled_requests[0] is copied num_requests times
+    tmp = filtered_dataset[0]
+    for i in range (num_requests):
+        repeated_sample0.append(tmp)
+    ###print(repeated_sample0)
+    return repeated_sample0
 
 def run_vllm(
     requests: List[Tuple[str, int, int]],

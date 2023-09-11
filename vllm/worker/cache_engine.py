@@ -57,6 +57,14 @@ class CacheEngine:
     def get_key_block_shape(self) -> Tuple[int, int, int, int]:
         element_size = torch.tensor([], dtype=self.dtype).element_size()
         x = 16 // element_size
+        if self.kv_quant_type == 'int4':
+            return (
+                self.num_heads,
+                self.head_size // 2 // x,
+                self.block_size,
+                x,
+            )
+
         return (
             self.num_heads,
             self.head_size // x,
@@ -71,6 +79,13 @@ class CacheEngine:
         )
 
     def get_value_block_shape(self) -> Tuple[int, int, int]:
+        if self.kv_quant_type == 'int4':
+            return (
+                self.num_heads,
+                self.head_size // 2,
+                self.block_size,
+            )
+
         return (
             self.num_heads,
             self.head_size,
@@ -88,7 +103,7 @@ class CacheEngine:
         key_block_shape = self.get_key_block_shape()
         value_block_shape = self.get_value_block_shape()
         block_type = self.dtype
-        if self.kv_quant_type == 'int8':
+        if self.kv_quant_type == 'int8' or self.kv_quant_type == 'int4':
             key_scale_block_shape = self.get_key_scale_block_shape()
             value_scale_block_shape = self.get_value_scale_block_shape()
             block_type = torch.int8
@@ -106,7 +121,7 @@ class CacheEngine:
             )
             key_scale = None
             value_scale = None
-            if self.kv_quant_type == 'int8':
+            if self.kv_quant_type == 'int8' or self.kv_quant_type == 'int4':
                 key_scale = torch.empty(
                     size=(self.num_gpu_blocks, *key_scale_block_shape),
                     dtype=self.dtype,
@@ -125,7 +140,7 @@ class CacheEngine:
         key_block_shape = self.get_key_block_shape()
         value_block_shape = self.get_value_block_shape()
         block_type = self.dtype
-        if self.kv_quant_type == 'int8':
+        if self.kv_quant_type == 'int8' or self.kv_quant_type == 'int4':
             key_scale_block_shape = self.get_key_scale_block_shape()
             value_scale_block_shape = self.get_value_scale_block_shape()
             block_type = torch.int8
@@ -148,7 +163,7 @@ class CacheEngine:
             )
             key_scale = None
             value_scale = None
-            if self.kv_quant_type == 'int8':
+            if self.kv_quant_type == 'int8' or self.kv_quant_type == 'int4':
                 key_scale = torch.empty(
                     size=(self.num_cpu_blocks, *key_scale_block_shape),
                     dtype=self.dtype,
@@ -226,10 +241,12 @@ class CacheEngine:
         scale_dtype_size = dtype_size
 
         key_cache_block = block_size * num_heads * head_size
+        if kv_quant_type == 'int4':
+            key_cache_block = block_size * num_heads * head_size//2
         value_cache_block = key_cache_block
         key_scale_block = 0
         value_scale_block = 0
-        if kv_quant_type == 'int8':
+        if kv_quant_type == 'int8' or kv_quant_type == 'int4':
             key_scale_block = block_size * num_heads
             value_scale_block = key_scale_block
             dtype_size = _get_dtype_size(torch.int8)
