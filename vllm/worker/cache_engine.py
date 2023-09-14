@@ -58,6 +58,7 @@ class CacheEngine:
         element_size = torch.tensor([], dtype=self.dtype).element_size()
         x = 16 // element_size
         if self.kv_quant_type == 'int4':
+            x = 16 # 16 int8 == 16 Bytes
             return (
                 self.num_heads,
                 self.head_size // 2 // x,
